@@ -135,7 +135,7 @@ func (h *Hyperion) HandleMessage(handler func(*Connection, Message)) {
 	handlers["message"] = handler
 }
 
-// TODO: Call this on connection close
+// Will be called on close
 func (h *Hyperion) HandleClose(handler func(*Connection, Message)) {
 	handlers["close"] = handler
 }
