@@ -21,7 +21,7 @@ var (
 	// Holds all handler functions which will be called on certain events (e.g. message, close ...)
 	handlers = map[string]func(*Connection, Message){}
 
-	defaultConfig = HyperionConfig{
+	defaultConfig = Config{
 		PingInterval:    DefaultPingInterval,
 		ReadTimeout:     DefaultReadTimeout,
 		WriteTimeout:    DefaultWriteTimeout,
@@ -32,14 +32,14 @@ var (
 )
 
 type Hyperion struct {
-	config *HyperionConfig
+	config *Config
 
 	// Holds all connections and provides channels for managing them
 	manager  *ConnectionManager
 	Upgrader *websocket.Upgrader
 }
 
-type HyperionConfig struct {
+type Config struct {
 	PingInterval    time.Duration
 	WriteTimeout    time.Duration
 	ReadTimeout     time.Duration
@@ -54,7 +54,7 @@ func Default() *Hyperion {
 }
 
 // New Hyperion structure with defined config
-func New(config *HyperionConfig) *Hyperion {
+func New(config *Config) *Hyperion {
 	manager := newConnectionManager()
 	go manager.run()
 
