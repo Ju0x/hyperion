@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hyperion Chat Example</title>
+</head>
+<body>
+    <main>
+        <div id="messages"></div>
+        <div class="send">
+            <input placeholder="Message" id="message-input">
+            <button id="message-send" onclick="send()">Send</button>
+        </div>
+    </main>
+    <script>
+        "use strict"
+
+        const nickname = prompt("Please enter a nickname!", "anonymous")
+
+        if (nickname.length > 32) {
+            alert("Nickname cannot exceed 32 characters!")
+            window.location.reload()
+        }
+
+        if (nickname.trim().length == 0) {
+            alert("Nickname cannot be empty!")
+            window.location.reload()
+        }
+
+
+        const ws = new WebSocket("ws://localhost:8080/ws")
+        const messages = document.getElementById("messages")
+        const messageInput = document.getElementById("message-input")
+
+        ws.onopen = () => {
+            console.log("Successfully opened websocket connection")
+        }
+
+        ws.onclose = () => {
+            alert("Connection to websocket has been closed")
+            setTimeout(() => window.location.reload(), 2500)
+        }
+
+        ws.onerror = () => {
+            alert("Connection to websocket failed")
+            setTimeout(() => window.location.reload(), 2500)
+        }
+
+        ws.onmessage = (e) => {
+            let msg = JSON.parse(e.data)
+
+            /* Append new message to the messages div */
+            
+            let message = document.createElement("div")
+            message.classList.add("message")
+            
+            let nickname = document.createElement("b");
+            let content = document.createElement("p");
+
+            nickname.innerText = msg.nickname
+            content.innerText = msg.content
+
+            message.appendChild(nickname)
+            message.appendChild(content)
+
+            messages.appendChild(message)
+            messages.scrollTop = messages.scrollHeight
+        }
+
+        messageInput.onkeydown = (e) => {
+            if (e.key == "Enter") {
+                send()
+            }
+        }
+
+        const send = () => {
+            if (messageInput.value.length > 1000) {
+                alert("Message content cannot exceed 1000 characters!")
+                return
+            }
+
+            ws.send(
+                JSON.stringify({content: messageInput.value, nickname: nickname})
+            )
+            messageInput.value = ""
+        }
+
+    </script>
+    <style>
+        html, body {
+            margin: 0;
+            font-family: Arial, Helvetica, sans-serif;
+            background-color: rgb(34, 34, 34);
+            color: white;
+        }
+
+        main {
+            max-width: 600px;
+            width: 50vw;
+            position: absolute;
+            top: 0%;
+            left: 50%;
+            transform: translate(-50%, 0%);
+            height: 100%;
+            background-color: rgb(48, 48, 48);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        input {
+            background-color: gray;
+            border: none;
+            outline: transparent;
+            padding: 0.48rem;
+            border-radius: 0.24rem;
+            width: 40vw;
+            color: white;
+            font-size: 0.8rem;
+        }
+
+        button {
+            padding: 0.48rem 0.96rem;
+            font-size: 0.8rem;
+        }
+
+        .send {
+            position: absolute;
+            bottom: 0%;
+            width: inherit;
+            display: flex;
+            justify-content: center;
+            margin: 0.48rem;
+        }
+
+        #messages {
+            width: 48vw;
+            height: 90vh;
+            overflow-y: scroll;
+        }
+
+        .message {
+            font-size: 0.8rem;
+            margin: 1rem;
+        }
+
+        .message > p {
+            margin: 0.24rem 0;
+        }
+
+        .message > b {
+            font-size: 0.8rem;
+            color: rgb(129, 129, 255);
+        }
+    </style>
+</body>
+</html>
