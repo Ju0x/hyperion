@@ -2,6 +2,7 @@ package hyperion
 
 import (
 	"bytes"
+	"encoding/json"
 	"log"
 	"net/http"
 	"sync"
@@ -93,6 +94,29 @@ func (c *Connection) writer() {
 	}
 }
 
-func (c *Connection) Write(b []byte) {
+func (c *Connection) Close() {
+	c.hub.unregister <- c
+}
+
+/*
+	Writing functions
+*/
+
+func (c *Connection) WriteBytes(b []byte) {
 	c.send <- b
+}
+
+func (c *Connection) WriteString(s string) {
+	c.send <- []byte(s)
+}
+
+func (c *Connection) WriteJSON(v any) error {
+	b, err := json.Marshal(v)
+
+	if err != nil {
+		return err
+	}
+
+	c.send <- b
+	return nil
 }

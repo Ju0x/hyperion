@@ -20,7 +20,7 @@ func main() {
 
 	h.HandleMessage(func(c *hyperion.Connection, m hyperion.Message) {
 		log.Println("Echo: " + m.String())
-		c.Write(m)
+		c.WriteBytes(m)
 	})
 
 	log.Fatal(http.ListenAndServe(":8080", nil))

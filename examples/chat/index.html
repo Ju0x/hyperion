@@ -117,7 +117,7 @@
             border-radius: 0.24rem;
             width: 40vw;
             color: white;
-            font-size: 0.8rem;
+            font-size: 1.2rem;
         }
 
         button {
@@ -128,21 +128,23 @@
         .send {
             position: absolute;
             bottom: 0%;
-            width: inherit;
+            max-width: 600px;
             display: flex;
             justify-content: center;
             margin: 0.48rem;
         }
 
         #messages {
+            max-width: 600px;
             width: 48vw;
             height: 90vh;
             overflow-y: scroll;
         }
 
         .message {
-            font-size: 0.8rem;
+            font-size: 1.2rem;
             margin: 1rem;
+            word-break: normal;
         }
 
         .message > p {
@@ -150,7 +152,6 @@
         }
 
         .message > b {
-            font-size: 0.8rem;
             color: rgb(129, 129, 255);
         }
     </style>
