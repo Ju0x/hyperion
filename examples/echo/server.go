@@ -1,26 +1,25 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 
 	"github.com/Ju0x/hyperion"
 )
 
-func main() {
+// Receives new connections and responds with an echo
+func server() {
 	h := hyperion.Default()
 
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		http.ServeFile(w, r, "index.html")
-	})
-
 	http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
-		h.NewConnection(w, r)
+		h.Upgrade(w, r)
 	})
 
+	// Receives messages from the client and echo's them
 	h.HandleMessage(func(c *hyperion.Connection, m hyperion.Message) {
-		log.Println("Broadcasting: " + m.String())
-		h.BroadcastBytes(m)
+		fmt.Println("[Server] Received: " + m.String())
+		c.WriteBytes(m)
 	})
 
 	log.Fatal(http.ListenAndServe(":8080", nil))

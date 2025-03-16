@@ -19,7 +19,7 @@ func TestWebSocketConnection(t *testing.T) {
 	})
 
 	httpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_, err := h.NewConnection(w, r)
+		_, err := h.Upgrade(w, r)
 		assert.NoError(t, err, "Failed to upgrade connection")
 	}))
 	defer httpServer.Close()
@@ -45,7 +45,7 @@ func TestWebSocketConnection(t *testing.T) {
 func TestBroadcastJSON(t *testing.T) {
 	h := hyperion.Default()
 	httpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		h.NewConnection(w, r)
+		h.Upgrade(w, r)
 	}))
 	defer httpServer.Close()
 

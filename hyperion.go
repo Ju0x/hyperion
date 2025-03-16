@@ -21,18 +21,15 @@ var logger = log.New(new(logWriter), "", 0)
 
 // Default values used in hyperion.Default()
 const (
-	DefaultPingInterval     = 10 * time.Second
-	DefaultWriteTimeout     = 10 * time.Second
-	DefaultReadTimeout      = 10 * time.Second
+	DefaultPingInterval     = 15 * time.Second
+	DefaultWriteTimeout     = 30 * time.Second
+	DefaultReadTimeout      = 30 * time.Second
 	DefaultHandshakeTimeout = 15 * time.Second
 	DefaultReadBufferSize   = 1024
 	DefaultWriteBufferSize  = 1024
 )
 
 var (
-	// Holds all handler functions which will be called on certain events (e.g. message, close ...)
-	handlers = map[string]func(*Connection, Message){}
-
 	defaultConfig = Config{
 		PingInterval:    DefaultPingInterval,
 		ReadTimeout:     DefaultReadTimeout,
@@ -98,6 +95,10 @@ func New(config *Config) *Hyperion {
 		if config.CheckOrigin == nil {
 			config.CheckOrigin = func(r *http.Request) bool { return true }
 		}
+
+		if (config.PingInterval > config.ReadTimeout) || (config.PingInterval > config.WriteTimeout) {
+			logger.Println("Warning: PingInterval shouldn't be higher than ReadTimeout or WriteTimeout, this could lead to an unwanted connection close")
+		}
 	}
 
 	return &Hyperion{
@@ -121,18 +122,18 @@ func (m Message) String() string {
 
 // Set a function that will be called if a new WebSocket message is received
 func (h *Hyperion) HandleMessage(handler func(*Connection, Message)) {
-	if _, ok := handlers["message"]; ok {
+	if h.manager.messageHandler != nil {
 		logger.Fatal("Fatal: HandleMessage can only exist once")
 	}
 
-	handlers["message"] = handler
+	h.manager.messageHandler = handler
 }
 
 // Set a function that will be called on close
 func (h *Hyperion) HandleClose(handler func(*Connection, Message)) {
-	if _, ok := handlers["close"]; ok {
+	if h.manager.closeHandler != nil {
 		logger.Fatal("Fatal: HandleClose can only exist once")
 	}
 
-	handlers["close"] = handler
+	h.manager.closeHandler = handler
 }

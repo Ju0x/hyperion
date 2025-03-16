@@ -22,7 +22,7 @@ func main() {
 	})
 
 	http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
-		h.NewConnection(w, r)
+		h.Upgrade(w, r)
 	})
 
 	h.HandleMessage(func(c *hyperion.Connection, m hyperion.Message) {
