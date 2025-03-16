@@ -3,7 +3,6 @@ package hyperion
 import (
 	"bytes"
 	"encoding/json"
-	"log"
 	"net/http"
 	"sync"
 	"time"
@@ -19,7 +18,31 @@ type Connection struct {
 	readTimeout  time.Duration
 	writeTimeout time.Duration
 	pingInterval time.Duration
+
+	// 0 if connection isn't closed
+	CloseCode int
+
+	IsClosed bool
 }
+
+// Using defined codes from github.com/gorilla/websocket to make them accessible through this lib
+// Close codes defined in RFC 6455, section 11.7.
+const (
+	CloseNormalClosure           = websocket.CloseNormalClosure
+	CloseGoingAway               = websocket.CloseGoingAway
+	CloseProtocolError           = websocket.CloseProtocolError
+	CloseUnsupportedData         = websocket.CloseUnsupportedData
+	CloseNoStatusReceived        = websocket.CloseNoStatusReceived
+	CloseAbnormalClosure         = websocket.CloseAbnormalClosure
+	CloseInvalidFramePayloadData = websocket.CloseInvalidFramePayloadData
+	ClosePolicyViolation         = websocket.ClosePolicyViolation
+	CloseMessageTooBig           = websocket.CloseMessageTooBig
+	CloseMandatoryExtension      = websocket.CloseMandatoryExtension
+	CloseInternalServerErr       = websocket.CloseInternalServerErr
+	CloseServiceRestart          = websocket.CloseServiceRestart
+	CloseTryAgainLater           = websocket.CloseTryAgainLater
+	CloseTLSHandshake            = websocket.CloseTLSHandshake
+)
 
 // Use this to upgrade your request to a websocket connection.
 // Initializes a new connection and adds it to the connection manager.
@@ -39,6 +62,8 @@ func (h *Hyperion) NewConnection(w http.ResponseWriter, r *http.Request) (*Conne
 	conn.websocket.SetCloseHandler(func(code int, text string) error {
 		message := websocket.FormatCloseMessage(code, "")
 		conn.websocket.WriteControl(websocket.CloseMessage, message, time.Now().Add(time.Second))
+
+		conn.CloseCode = code
 
 		// Call close handler
 		if closeHandler, ok := handlers["close"]; ok {
@@ -111,6 +136,7 @@ func (c *Connection) reader() {
 	defer func() {
 		c.manager.unregister <- c
 		c.websocket.Close()
+		c.IsClosed = true
 	}()
 
 	c.websocket.SetPongHandler(func(string) error {
@@ -121,8 +147,8 @@ func (c *Connection) reader() {
 	for {
 		messageType, message, err := c.websocket.ReadMessage()
 		if err != nil {
-			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-				log.Printf("Error: %v", err)
+			if websocket.IsUnexpectedCloseError(err, CloseGoingAway, CloseAbnormalClosure) {
+				logger.Printf("Error: %v", err)
 			}
 			break
 		}
@@ -146,6 +172,7 @@ func (c *Connection) writer() {
 	defer func() {
 		ticker.Stop()
 		c.websocket.Close()
+		c.IsClosed = true
 	}()
 
 	for {
@@ -211,5 +238,24 @@ func (c *Connection) WriteJSON(v any) error {
 	}
 
 	c.WriteBytes(b)
+	return nil
+}
+
+func (h *Hyperion) BroadcastBytes(b []byte) {
+	h.manager.broadcast <- b
+}
+
+func (h *Hyperion) BroadcastString(s string) {
+	h.BroadcastBytes([]byte(s))
+}
+
+func (h *Hyperion) BroadcastJSON(v any) error {
+	b, err := json.Marshal(v)
+
+	if err != nil {
+		return err
+	}
+
+	h.BroadcastBytes(b)
 	return nil
 }
