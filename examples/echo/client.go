@@ -24,7 +24,7 @@ func client() {
 	})
 
 	// Writes the message to the server
-	conn.WriteString("Hello World!\n")
+	conn.WriteString("Hello World!")
 
 	// Short block until the response is there
 	time.Sleep(1 * time.Second)
