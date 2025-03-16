@@ -130,7 +130,7 @@ func (h *Hyperion) HandleMessage(handler func(*Connection, Message)) {
 
 // Set a function that will be called on close
 func (h *Hyperion) HandleClose(handler func(*Connection, Message)) {
-	if _, ok := handlers["message"]; ok {
+	if _, ok := handlers["close"]; ok {
 		logger.Fatal("Fatal: HandleClose can only exist once")
 	}
 
