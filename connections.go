@@ -3,12 +3,16 @@ package hyperion
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/gorilla/websocket"
 )
+
+var mu sync.Mutex
 
 type Connection struct {
 	manager   *ConnectionManager
@@ -22,7 +26,7 @@ type Connection struct {
 	// 0 if connection isn't closed
 	CloseCode int
 
-	IsClosed bool
+	isClosed atomic.Bool
 }
 
 // Using defined codes from github.com/gorilla/websocket to make them accessible through this lib
@@ -44,15 +48,23 @@ const (
 	CloseTLSHandshake            = websocket.CloseTLSHandshake
 )
 
-// Use this to upgrade your request to a websocket connection.
-// Initializes a new connection and adds it to the connection manager.
-func (h *Hyperion) NewConnection(w http.ResponseWriter, r *http.Request) (*Connection, error) {
+func (h *Hyperion) Upgrade(w http.ResponseWriter, r *http.Request) (*Connection, error) {
 	gorillaConn, err := h.Upgrader.Upgrade(w, r, nil)
 
+	if err != nil {
+		return nil, err
+	}
+
+	return h.newConnection(gorillaConn)
+}
+
+// Use this to upgrade your request to a websocket connection.
+// Initializes a new connection and adds it to the connection manager.
+func (h *Hyperion) newConnection(gorillaConn *websocket.Conn) (*Connection, error) {
 	conn := &Connection{
 		websocket: gorillaConn,
 		manager:   h.manager,
-		send:      make(chan []byte),
+		send:      make(chan []byte, 256),
 
 		readTimeout:  h.config.ReadTimeout,
 		writeTimeout: h.config.WriteTimeout,
@@ -66,8 +78,8 @@ func (h *Hyperion) NewConnection(w http.ResponseWriter, r *http.Request) (*Conne
 		conn.CloseCode = code
 
 		// Call close handler
-		if closeHandler, ok := handlers["close"]; ok {
-			closeHandler(conn, message)
+		if h.manager.closeHandler != nil {
+			h.manager.closeHandler(conn, message)
 		}
 
 		return nil
@@ -78,7 +90,7 @@ func (h *Hyperion) NewConnection(w http.ResponseWriter, r *http.Request) (*Conne
 	go conn.reader()
 	go conn.writer()
 
-	return conn, err
+	return conn, nil
 }
 
 type ConnectionManager struct {
@@ -87,6 +99,9 @@ type ConnectionManager struct {
 	broadcast   chan []byte
 	register    chan *Connection
 	unregister  chan *Connection
+
+	messageHandler func(*Connection, Message)
+	closeHandler   func(*Connection, Message)
 }
 
 func newConnectionManager() *ConnectionManager {
@@ -95,6 +110,9 @@ func newConnectionManager() *ConnectionManager {
 		broadcast:   make(chan []byte),
 		register:    make(chan *Connection),
 		unregister:  make(chan *Connection),
+
+		messageHandler: nil,
+		closeHandler:   nil,
 	}
 }
 
@@ -110,6 +128,7 @@ func (m *ConnectionManager) run() {
 		case conn := <-m.unregister:
 			m.mu.Lock()
 			if _, ok := m.connections[conn]; ok {
+				conn.setClosed(true)
 				delete(m.connections, conn)
 				close(conn.send)
 			}
@@ -118,10 +137,16 @@ func (m *ConnectionManager) run() {
 		case message := <-m.broadcast:
 			m.mu.Lock()
 			for conn := range m.connections {
+				if conn.IsClosed() {
+					delete(m.connections, conn)
+					close(conn.send)
+					continue
+				}
+
 				select {
 				case conn.send <- message:
 				default:
-					// Sending failed, unregister connection
+					conn.setClosed(true)
 					delete(m.connections, conn)
 					close(conn.send)
 				}
@@ -134,17 +159,20 @@ func (m *ConnectionManager) run() {
 // Reads incoming data to the websocket connection
 func (c *Connection) reader() {
 	defer func() {
-		c.manager.unregister <- c
 		c.websocket.Close()
-		c.IsClosed = true
+		c.manager.unregister <- c
+		c.setClosed(true)
 	}()
 
 	c.websocket.SetPongHandler(func(string) error {
+		c.websocket.SetWriteDeadline(time.Now().Add(c.writeTimeout))
 		c.websocket.SetReadDeadline(time.Now().Add(c.readTimeout))
 		return nil
 	})
 
 	for {
+		c.websocket.SetReadDeadline(time.Now().Add(c.readTimeout))
+
 		messageType, message, err := c.websocket.ReadMessage()
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, CloseGoingAway, CloseAbnormalClosure) {
@@ -159,20 +187,29 @@ func (c *Connection) reader() {
 
 		message = bytes.TrimSpace(bytes.Replace(message, []byte("\n"), []byte(" "), -1))
 
-		// Standard-Nachrichtenhandler aufrufen
-		if messageHandler, ok := handlers["message"]; ok {
-			messageHandler(c, message)
+		mu.Lock()
+		if c.manager.messageHandler != nil {
+			c.manager.messageHandler(c, message)
 		}
+		mu.Unlock()
 	}
 }
 
 // Writes data that is being passed to the send channel in the Connection struct
 func (c *Connection) writer() {
+
+	if c.pingInterval != 0 {
+		c.pingInterval = c.pingInterval - (1 * time.Second) // Adding 1s buffer
+		if c.pingInterval < (1 * time.Second) {
+			c.pingInterval = 1 * time.Second
+		}
+	}
+
 	ticker := time.NewTicker(c.pingInterval)
 	defer func() {
 		ticker.Stop()
 		c.websocket.Close()
-		c.IsClosed = true
+		c.setClosed(true)
 	}()
 
 	for {
@@ -213,21 +250,41 @@ func (c *Connection) writer() {
 	}
 }
 
+func (c *Connection) IsClosed() bool {
+	return c.isClosed.Load()
+}
+
+func (c *Connection) setClosed(closed bool) {
+	c.isClosed.Store(closed)
+}
+
 /*
 	Writing functions
 */
 
-func (c *Connection) WriteBytes(b []byte) {
+func (c *Connection) WriteBytes(b []byte) error {
+	c.manager.mu.Lock()
+	defer c.manager.mu.Unlock()
+
+	if c.IsClosed() {
+		return fmt.Errorf("cannot write to closed connection")
+	}
+
 	select {
 	case c.send <- b:
+		return nil
 	default:
-		// Unregister if connection isn't writable
-		c.manager.unregister <- c
+		c.setClosed(true)
+
+		go func() {
+			c.manager.unregister <- c
+		}()
+		return fmt.Errorf("send buffer full, connection queued for unregistration")
 	}
 }
 
-func (c *Connection) WriteString(s string) {
-	c.WriteBytes([]byte(s))
+func (c *Connection) WriteString(s string) error {
+	return c.WriteBytes([]byte(s))
 }
 
 func (c *Connection) WriteJSON(v any) error {
@@ -237,8 +294,7 @@ func (c *Connection) WriteJSON(v any) error {
 		return err
 	}
 
-	c.WriteBytes(b)
-	return nil
+	return c.WriteBytes(b)
 }
 
 func (h *Hyperion) BroadcastBytes(b []byte) {

@@ -3,7 +3,8 @@ Easy to use websocket library
 
 > This is a wrapper for https://github.com/gorilla/websocket
 
-## Examples
+
+# Examples
 
 Initialize Hyperion with the default config:
 ```go
@@ -21,7 +22,7 @@ h := hyperion.New(&hyperion.Config{
 ```
 
 
-Echo example with `net/http`
+## Server with net/http
 ```go
 h := hyperion.Default()
 
@@ -30,15 +31,29 @@ http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 })
 
 http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
-    h.NewConnection(w, r)
+    h.Upgrade(w, r)
 })
 
 h.HandleMessage(func(c *hyperion.Connection, m hyperion.Message) {
-    c.WriteBytes(m)
+    // ... handle messages from the client
 })
 
 log.Fatal(http.ListenAndServe(":8080", nil))
 ```
 
 
-You can find more examples [here](https://github.com/Ju0x/hyperion/examples).
+## Client
+```go
+h := hyperion.Default()
+
+conn, _, _ := h.Dial("ws://localhost:8080/ws", nil)
+
+h.HandleMessage(func(conn *hyperion.Connection, m hyperion.Message) {
+	// ... handle messages from the server
+})
+
+conn.WriteString("Hello World!")
+```
+
+
+You can find more examples [here](https://github.com/Ju0x/hyperion/tree/main/examples).
