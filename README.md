@@ -15,8 +15,8 @@ Or use a custom config:
 ```go
 h := hyperion.New(&hyperion.Config{
     PingInterval: 30 * time.Second,
-    ReadTimeout: 10 * time.Second,
-    WriteTimeout: 10 * time.Second,
+    ReadTimeout: 60 * time.Second,
+    WriteTimeout: 60 * time.Second,
     // ...
 })
 ```
@@ -57,3 +57,11 @@ conn.WriteString("Hello World!")
 
 
 You can find more examples [here](https://github.com/Ju0x/hyperion/tree/main/examples).
+
+## ToDo
+
+- [ ] Builtin ratelimitter
+
+- [ ] HTTP long polling support
+
+- [ ] Testing with Autobahn test suite
