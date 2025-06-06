@@ -1,10 +1,12 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Hyperion Chat Example</title>
 </head>
+
 <body>
     <main>
         <div id="messages"></div>
@@ -51,10 +53,10 @@
             let msg = JSON.parse(e.data)
 
             /* Append new message to the messages div */
-            
+
             let message = document.createElement("div")
             message.classList.add("message")
-            
+
             let nickname = document.createElement("b");
             let content = document.createElement("p");
 
@@ -81,14 +83,15 @@
             }
 
             ws.send(
-                JSON.stringify({content: messageInput.value, nickname: nickname})
+                JSON.stringify({ content: messageInput.value, nickname: nickname })
             )
             messageInput.value = ""
         }
 
     </script>
     <style>
-        html, body {
+        html,
+        body {
             margin: 0;
             font-family: Arial, Helvetica, sans-serif;
             background-image: linear-gradient(45deg, rgb(1, 1, 131), rgb(5, 114, 122));
@@ -152,13 +155,14 @@
             word-break: normal;
         }
 
-        .message > p {
+        .message>p {
             margin: 0.24rem 0;
         }
 
-        .message > b {
+        .message>b {
             color: rgb(129, 129, 255);
         }
     </style>
 </body>
+
 </html>

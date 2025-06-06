@@ -27,6 +27,9 @@ type Connection struct {
 	CloseCode int
 
 	isClosed atomic.Bool
+
+	// The HTTP request that established the connection
+	HttpUpgradeRequest *http.Request
 }
 
 // Using defined codes from github.com/gorilla/websocket to make them accessible through this lib
@@ -76,6 +79,7 @@ func (h *Hyperion) newConnection(gorillaConn *websocket.Conn) (*Connection, erro
 		conn.websocket.WriteControl(websocket.CloseMessage, message, time.Now().Add(time.Second))
 
 		conn.CloseCode = code
+		conn.setClosed(true)
 
 		// Call close handler
 		if h.manager.closeHandler != nil {
@@ -252,6 +256,11 @@ func (c *Connection) writer() {
 
 func (c *Connection) IsClosed() bool {
 	return c.isClosed.Load()
+}
+
+func (c *Connection) Close() error {
+	c.setClosed(true)
+	return c.websocket.Close()
 }
 
 func (c *Connection) setClosed(closed bool) {
