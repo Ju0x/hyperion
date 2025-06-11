@@ -41,6 +41,22 @@ h.HandleMessage(func(c *hyperion.Connection, m hyperion.Message) {
 log.Fatal(http.ListenAndServe(":8080", nil))
 ```
 
+## Server with gin-gonic/gin
+```go
+r := gin.Default()
+h := hyperion.Default()
+
+r.GET("/ws", func(ctx *gin.Context) {
+	h.Upgrade(ctx.Writer, ctx.Request)
+})
+
+h.HandleMessage(func(c *hyperion.Connection, m hyperion.Message) {
+	h.BroadcastBytes(m)
+})
+
+r.Run(":8080")
+```
+
 
 ## Client
 ```go
